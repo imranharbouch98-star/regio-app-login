@@ -4,7 +4,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./App.css";
 import Login from "./Login.jsx";
-import { firebaseEnabled, subscribeToOverrides, saveOverridesShared } from "./firebase.js";
+import { firebaseEnabled, subscribeToOverrides, saveOverridesShared, subscribeToAdminAuth, adminSignOut } from "./firebase.js";
 import avatarMale from "./assets/avatar-male.png";
 import avatarFemale from "./assets/avatar-female.png";
 
@@ -193,7 +193,12 @@ function MapEvents({ onZoom, onBounds }) {
 export default function App() {
   const [authed, setAuthed] = useState(() => sessionStorage.getItem(AUTH_KEY) === "1");
   const [role, setRole] = useState(() => sessionStorage.getItem(ROLE_KEY) || "viewer");
+  const [fbAdminAuthed, setFbAdminAuthed] = useState(false);
   const [activeDept, setActiveDept] = useState(DEPARTMENTS[0].id);
+
+  useEffect(() => {
+    return subscribeToAdminAuth(setFbAdminAuthed);
+  }, []);
 
   if (!authed) {
     return (
@@ -209,11 +214,15 @@ export default function App() {
   }
 
   const dept = DEPARTMENTS.find((d) => d.id === activeDept);
-  const isAdmin = role === "admin";
+  // admin UI/writes require a real Firebase-authenticated session when
+  // Firebase is configured -- sessionStorage alone can be faked from
+  // devtools, so it's no longer the actual security boundary
+  const isAdmin = role === "admin" && (!firebaseEnabled || fbAdminAuthed);
 
   function handleLogout() {
     sessionStorage.removeItem(AUTH_KEY);
     sessionStorage.removeItem(ROLE_KEY);
+    adminSignOut();
     setRole("viewer");
     setAuthed(false);
   }

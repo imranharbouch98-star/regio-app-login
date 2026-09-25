@@ -1,13 +1,20 @@
 import { useState } from "react";
+import { firebaseEnabled, adminSignIn } from "./firebase.js";
 
 const VIEW_CODE = import.meta.env.VITE_ACCESS_CODE || "Bawaba";
-const ADMIN_CODE = import.meta.env.VITE_ADMIN_ACCESS_CODE || "adminbawaba";
+// only used when Firebase isn't configured (local dev) -- there's no shared
+// database to protect in that case, so a plain code is fine as a fallback
+const LOCAL_ADMIN_CODE = import.meta.env.VITE_ADMIN_ACCESS_CODE || "adminbawaba";
+// the single shared admin account's email (created once in the Firebase
+// Console); the login form itself only asks for the password
+const ADMIN_EMAIL = import.meta.env.VITE_FIREBASE_ADMIN_EMAIL || "admin@regioapp.local";
 
 export default function Login({ onSuccess }) {
   const [mode, setMode] = useState("viewer");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   function switchMode(next) {
     setMode(next);
@@ -23,12 +30,27 @@ export default function Login({ onSuccess }) {
     }
   }
 
-  function handleAdminSubmit(e) {
+  async function handleAdminSubmit(e) {
     e.preventDefault();
-    if (password === ADMIN_CODE) {
+    setError("");
+
+    if (!firebaseEnabled) {
+      if (password === LOCAL_ADMIN_CODE) {
+        onSuccess("admin");
+      } else {
+        setError("Foute code, probeer opnieuw");
+      }
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await adminSignIn(ADMIN_EMAIL, password);
       onSuccess("admin");
-    } else {
+    } catch {
       setError("Foute code, probeer opnieuw");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -46,7 +68,9 @@ export default function Login({ onSuccess }) {
             placeholder="Beheerderscode"
           />
           {error && <p className="warning">{error}</p>}
-          <button type="submit" className="save-btn">Inloggen</button>
+          <button type="submit" className="save-btn" disabled={busy}>
+            {busy ? "Bezig..." : "Inloggen"}
+          </button>
           <button type="button" className="login-switch" onClick={() => switchMode("viewer")}>
             ← Terug naar normale login
           </button>
