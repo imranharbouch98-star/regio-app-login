@@ -299,6 +299,7 @@ function DeptMap({ config, isAdmin }) {
   const advisorLayerRef = useRef(null);
   const panelRef = useRef(null);
   const notesSeededRef = useRef(false);
+  const productsMigratedRef = useRef(false);
   const handlePostcodeClickRef = useRef(() => {});
   const activePopupRef = useRef(null);
 
@@ -323,11 +324,48 @@ function DeptMap({ config, isAdmin }) {
     }
   }, [deletedFirebasePath]);
 
+  // one-time backfill: copy each advisor's original product tags into their
+  // profile, since the profile used to be a separate, empty data store
+  function backfillProductsFromTags(currentProfiles) {
+    const productIds = PRODUCT_DEFS.map((p) => p.id);
+    let changed = false;
+    const next = { ...currentProfiles };
+    Object.keys(advisorTagsBase).forEach((name) => {
+      const existing = next[name];
+      if (existing && existing.products && existing.products.length > 0) return;
+      const seedTags = advisorTagsBase[name] || [];
+      const products = productIds.filter((id) => seedTags.includes(id));
+      if (products.length === 0) return;
+      next[name] = { ...emptyProfile(), ...(existing || {}), products };
+      changed = true;
+    });
+    return changed ? next : null;
+  }
+
   useEffect(() => {
     if (firebaseEnabled) {
-      const unsubscribe = subscribeToOverrides(profilesFirebasePath, (shared) => setProfiles(shared));
+      const unsubscribe = subscribeToOverrides(profilesFirebasePath, (shared) => {
+        setProfiles(shared);
+        if (!productsMigratedRef.current) {
+          productsMigratedRef.current = true;
+          const migrated = backfillProductsFromTags(shared);
+          if (migrated) {
+            setProfiles(migrated);
+            saveOverridesShared(profilesFirebasePath, migrated);
+          }
+        }
+      });
       return unsubscribe;
     }
+    if (!productsMigratedRef.current) {
+      productsMigratedRef.current = true;
+      const migrated = backfillProductsFromTags(profiles);
+      if (migrated) {
+        setProfiles(migrated);
+        saveOverridesLocal(profilesStorageKey, migrated);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profilesFirebasePath]);
 
   useEffect(() => {
@@ -949,7 +987,8 @@ function DeptMap({ config, isAdmin }) {
             const nameTags = advisorTags[name] || [];
             const prioTag = tagDefs.find((td) => td.bold && nameTags.includes(td.id));
             const isPrio = Boolean(prioTag);
-            const activeTags = tagDefs.filter((td) => !td.bold && nameTags.includes(td.id));
+            const nameProducts = profiles[name]?.products || [];
+            const activeTags = PRODUCT_DEFS.filter((p) => nameProducts.includes(p.id));
             return (
               <li key={name} className="advisor-row">
                 <button
@@ -1160,10 +1199,10 @@ function DeptMap({ config, isAdmin }) {
             {panelUnknown.length > 0 && (
               <p className="warning">Onbekend of ongeldig: {panelUnknown.join(", ")}</p>
             )}
-            {tagDefs.length > 0 && (
+            {tagDefs.some((td) => td.bold) && (
               <div className="advisor-panel-tags">
-                <p className="hint">Specialiteiten</p>
-                {tagDefs.map((td) => (
+                <p className="hint">Prioriteit</p>
+                {tagDefs.filter((td) => td.bold).map((td) => (
                   <label key={td.id} className="advisor-panel-tag">
                     <input
                       type="checkbox"
@@ -1173,6 +1212,7 @@ function DeptMap({ config, isAdmin }) {
                     <span>{td.emoji} {td.label}</span>
                   </label>
                 ))}
+                <p className="hint">Producten aanpassen kan via het profiel (👤)</p>
               </div>
             )}
             <div className="editor-actions">
