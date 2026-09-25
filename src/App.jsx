@@ -211,6 +211,13 @@ export default function App() {
   const dept = DEPARTMENTS.find((d) => d.id === activeDept);
   const isAdmin = role === "admin";
 
+  function handleLogout() {
+    sessionStorage.removeItem(AUTH_KEY);
+    sessionStorage.removeItem(ROLE_KEY);
+    setRole("viewer");
+    setAuthed(false);
+  }
+
   return (
     <div className="app-shell">
       <div className="dept-tabs">
@@ -223,6 +230,7 @@ export default function App() {
             {d.label}
           </button>
         ))}
+        <button className="logout-btn" onClick={handleLogout}>Uitloggen</button>
       </div>
       <DeptMap key={dept.id} config={dept} isAdmin={isAdmin} />
     </div>
@@ -275,6 +283,8 @@ function DeptMap({ config, isAdmin }) {
   const [profileViewName, setProfileViewName] = useState(null);
   const [profileDraft, setProfileDraft] = useState(null);
   const [profileSaved, setProfileSaved] = useState(false);
+  const [newAdvisorName, setNewAdvisorName] = useState("");
+  const [addAdvisorError, setAddAdvisorError] = useState("");
   const mapRef = useRef(null);
   const canvasRenderer = useMemo(() => L.canvas(), []);
   const advisorLayerRef = useRef(null);
@@ -631,6 +641,42 @@ function DeptMap({ config, isAdmin }) {
     setPanelAdvisor(null);
   }
 
+  function addAdvisor(e) {
+    e.preventDefault();
+    if (!isAdmin) return;
+    const trimmed = newAdvisorName.trim();
+    if (!trimmed) {
+      setAddAdvisorError("Naam is verplicht");
+      return;
+    }
+    if (advisorNames.includes(trimmed)) {
+      setAddAdvisorError("Deze naam bestaat al");
+      return;
+    }
+    setAddAdvisorError("");
+
+    if (deletedAdvisors[trimmed]) {
+      // re-adds someone who was previously deleted instead of creating a duplicate
+      const nextDeleted = { ...deletedAdvisors };
+      delete nextDeleted[trimmed];
+      setDeletedAdvisors(nextDeleted);
+      if (firebaseEnabled) {
+        saveOverridesShared(deletedFirebasePath, nextDeleted);
+      } else {
+        saveOverridesLocal(deletedStorageKey, nextDeleted);
+      }
+    } else {
+      const nextOverrides = { ...overrides, [trimmed]: [] };
+      setOverrides(nextOverrides);
+      if (firebaseEnabled) {
+        saveOverridesShared(firebasePath, nextOverrides);
+      } else {
+        saveOverridesLocal(storageKey, nextOverrides);
+      }
+    }
+    setNewAdvisorName("");
+  }
+
   function openProfile(name) {
     setProfileViewName(name);
     setProfileSaved(false);
@@ -873,6 +919,18 @@ function DeptMap({ config, isAdmin }) {
             ↺ Herstel naar standaardgegevens
           </button>
         )}
+        {isAdmin && (
+          <form className="add-advisor-form" onSubmit={addAdvisor}>
+            <input
+              type="text"
+              placeholder="Naam nieuwe adviseur"
+              value={newAdvisorName}
+              onChange={(e) => { setNewAdvisorName(e.target.value); setAddAdvisorError(""); }}
+            />
+            <button type="submit" className="add-advisor-btn" title="Adviseur toevoegen">+</button>
+          </form>
+        )}
+        {addAdvisorError && <p className="warning">{addAdvisorError}</p>}
         <p className="hint">
           Klik op een naam om de regio te tonen{isAdmin ? " · dubbelklik om te bewerken" : ""}
         </p>

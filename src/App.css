@@ -36,6 +36,26 @@ html, body, #root { height: 100%; margin: 0; }
   color: #111;
 }
 
+.logout-btn {
+  margin-left: auto;
+  margin-bottom: 6px;
+  align-self: center;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid #c9c9c2;
+  border-radius: 6px;
+  background: #fafaf8;
+  color: #555;
+  cursor: pointer;
+}
+
+.logout-btn:hover {
+  background: #fff;
+  color: #a32d2d;
+  border-color: #d8b8b8;
+}
+
 .app {
   flex: 1;
   min-height: 0;
@@ -94,6 +114,37 @@ html, body, #root { height: 100%; margin: 0; }
   background: #f0f0ec;
   color: #a32d2d;
   border-color: #d8b8b8;
+}
+
+.add-advisor-form {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.add-advisor-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  font-size: 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-family: inherit;
+}
+
+.add-advisor-btn {
+  flex-shrink: 0;
+  width: 28px;
+  border-radius: 6px;
+  border: 1px solid #333;
+  background: #222;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.add-advisor-btn:hover {
+  background: #444;
 }
 
 .advisor-list {
@@ -408,6 +459,21 @@ html, body, #root { height: 100%; margin: 0; }
   font-size: 14px;
   border: 1px solid #ccc;
   border-radius: 6px;
+}
+
+.login-switch {
+  background: none;
+  border: none;
+  color: #777;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.login-switch:hover {
+  color: #333;
 }
 
 .crash-screen {
