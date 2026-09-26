@@ -294,11 +294,13 @@ function DeptMap({ config, isAdmin }) {
   const [profileSaved, setProfileSaved] = useState(false);
   const [newAdvisorName, setNewAdvisorName] = useState("");
   const [addAdvisorError, setAddAdvisorError] = useState("");
+  const [toast, setToast] = useState("");
   const mapRef = useRef(null);
   const canvasRenderer = useMemo(() => L.canvas(), []);
   const advisorLayerRef = useRef(null);
   const panelRef = useRef(null);
   const notesSeededRef = useRef(false);
+  const toastTimeoutRef = useRef(null);
   const productsMigratedRef = useRef(false);
   const handlePostcodeClickRef = useRef(() => {});
   const activePopupRef = useRef(null);
@@ -534,6 +536,12 @@ function DeptMap({ config, isAdmin }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPostcodeSet, highlightColor, searchByPostcode]);
 
+  function showToast(message) {
+    setToast(message);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => setToast(""), 2200);
+  }
+
   function selectAdvisor(name) {
     if (selected === name) {
       setSelected(null);
@@ -597,6 +605,7 @@ function DeptMap({ config, isAdmin }) {
 
     setDraft(nextList.join(", "));
     if (panelAdvisor === selected) setPanelPcDraft(nextList.join(", "));
+    showToast(has ? "Postcode verwijderd" : "Postcode toegevoegd");
   }
 
   // bound once via onEachFeature, so re-assigning this every render (instead of
@@ -666,6 +675,7 @@ function DeptMap({ config, isAdmin }) {
     if (selected === panelAdvisor) setDraft(uniquePcs.join(", "));
     setPanelSaved(true);
     setTimeout(() => setPanelSaved(false), 1500);
+    showToast("Wijzigingen opgeslagen");
   }
 
   function deleteAdvisor() {
@@ -686,6 +696,7 @@ function DeptMap({ config, isAdmin }) {
       setDraft("");
     }
     setPanelAdvisor(null);
+    showToast("Adviseur verwijderd");
   }
 
   function addAdvisor(e) {
@@ -722,6 +733,7 @@ function DeptMap({ config, isAdmin }) {
       }
     }
     setNewAdvisorName("");
+    showToast("Adviseur toegevoegd");
   }
 
   function openProfile(name) {
@@ -762,6 +774,7 @@ function DeptMap({ config, isAdmin }) {
     }
     setProfileSaved(true);
     setTimeout(() => setProfileSaved(false), 1500);
+    showToast("Profiel opgeslagen");
   }
 
   function pruneExpiredNotes(list) {
@@ -805,11 +818,13 @@ function DeptMap({ config, isAdmin }) {
     setNoteDraftPostcode("");
     setNoteDraftName("");
     setNoteDraftDate("");
+    showToast("Notitie toegevoegd");
   }
 
   function deleteNote(id) {
     if (!isAdmin) return;
     persistNotes(notesList.filter((n) => n.id !== id));
+    showToast("Notitie verwijderd");
   }
 
   const panelUnknown = panelPcDraft
@@ -855,6 +870,7 @@ function DeptMap({ config, isAdmin }) {
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
+    showToast("Wijzigingen opgeslagen");
   }
 
   function handleReset() {
@@ -877,6 +893,7 @@ function DeptMap({ config, isAdmin }) {
     setSelected(null);
     setDraft("");
     setPanelAdvisor(null);
+    showToast("Hersteld naar standaardgegevens");
   }
 
   const namesToPostcodes = useMemo(() => {
@@ -985,8 +1002,11 @@ function DeptMap({ config, isAdmin }) {
           {advisorNames.map((name, i) => {
             const searchHit = advisorSearchHighlight[name];
             const nameTags = advisorTags[name] || [];
-            const prioTag = tagDefs.find((td) => td.bold && nameTags.includes(td.id));
-            const isPrio = Boolean(prioTag);
+            const oldPrioTag = tagDefs.find((td) => td.bold && nameTags.includes(td.id));
+            const isTierA = profiles[name]?.tier === "A";
+            const isPrio = Boolean(oldPrioTag) || isTierA;
+            const prioLabel = oldPrioTag?.label || "A-Adviseur";
+            const prioEmoji = oldPrioTag?.emoji || "👑";
             const nameProducts = profiles[name]?.products || [];
             const activeTags = PRODUCT_DEFS.filter((p) => nameProducts.includes(p.id));
             return (
@@ -1007,7 +1027,7 @@ function DeptMap({ config, isAdmin }) {
                   <span className="advisor-row-top">
                     <span className="dot" style={{ background: colorForIndex(i) }} />
                     <span style={isPrio ? { fontWeight: 700, background: "#FFD70055", padding: "1px 5px", borderRadius: "4px" } : {}}>{name}</span>
-                    {prioTag && <span title={prioTag.label}>{prioTag.emoji}</span>}
+                    {isPrio && <span title={prioLabel}>{prioEmoji}</span>}
                     {advisorsHome[name]?.postcode && (
                       <span className="home-pc">{advisorsHome[name].postcode}</span>
                     )}
@@ -1082,7 +1102,7 @@ function DeptMap({ config, isAdmin }) {
                   <span className="search-result-names">
                     {advisors.length
                       ? advisors.map((n, idx) => {
-                          const isPrio = tagDefs.some((td) => td.bold && (advisorTags[n] || []).includes(td.id));
+                          const isPrio = tagDefs.some((td) => td.bold && (advisorTags[n] || []).includes(td.id)) || profiles[n]?.tier === "A";
                           return (
                             <span key={n} style={isPrio ? { fontWeight: 700 } : {}}>
                               {n}{idx < advisors.length - 1 ? ", " : ""}
@@ -1461,6 +1481,8 @@ function DeptMap({ config, isAdmin }) {
           </>
         );
       })()}
+
+      {toast && <div className="toast">{toast}</div>}
     </div>
   );
 }

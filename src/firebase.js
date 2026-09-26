@@ -28,18 +28,40 @@ if (firebaseEnabled) {
   auth = getAuth(app);
 }
 
+// Firebase Realtime Database forbids ".", "#", "$", "/", "[", "]" in object
+// keys, but the app uses advisor names (e.g. "Sven V.", "Tom H.") directly as
+// keys everywhere. Transparently escape/unescape those characters right at
+// the Firebase boundary so the rest of the app never has to know about it.
+const FORBIDDEN_KEY_CHARS = /[.#$/[\]]/g;
+const ESCAPED_KEY_CHARS = /~(\d+)~/g;
+
+function escapeKey(key) {
+  return key.replace(FORBIDDEN_KEY_CHARS, (ch) => `~${ch.charCodeAt(0)}~`);
+}
+
+function unescapeKey(key) {
+  return key.replace(ESCAPED_KEY_CHARS, (_, code) => String.fromCharCode(Number(code)));
+}
+
+function mapTopLevelKeys(obj, mapKey) {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
+  const out = {};
+  Object.entries(obj).forEach(([k, v]) => { out[mapKey(k)] = v; });
+  return out;
+}
+
 export function subscribeToOverrides(path, callback) {
   if (!db) return () => {};
   const overridesRef = ref(db, path);
   const unsubscribe = onValue(overridesRef, (snapshot) => {
-    callback(snapshot.val() || {});
+    callback(mapTopLevelKeys(snapshot.val(), unescapeKey) || {});
   });
   return unsubscribe;
 }
 
 export function saveOverridesShared(path, overrides) {
   if (!db) return Promise.resolve();
-  return set(ref(db, path), overrides);
+  return set(ref(db, path), mapTopLevelKeys(overrides, escapeKey));
 }
 
 // admin capability is enforced by Firebase (Security Rules require
